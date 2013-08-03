@@ -6,7 +6,7 @@ app.use(express.logger());
 
 app.get('/', function(request, response) {
    fs.readFile('index.html', function(err, data) {
-       var contents = data;
+       var contents = data.toString();
        console.log(contents);
        response.send(contents);
   });
