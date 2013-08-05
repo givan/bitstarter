@@ -1,4 +1,6 @@
-utomatically grade files for the presence of specified HTML tags/attributes.
+#!/usr/bin/env node
+/* 
+A utomatically grade files for the presence of specified HTML tags/attributes.
 Uses commander.js and cheerio. Teaches command line application development
 and basic DOM parsing.
 
@@ -22,8 +24,11 @@ References:
 var fs = require('fs');
 var program = require('commander');
 var cheerio = require('cheerio');
+var restler = require('restler');
+
 var HTMLFILE_DEFAULT = "index.html";
 var CHECKSFILE_DEFAULT = "checks.json";
+var URLFILE_DEFAULT="http://herokuapp.com/";
 
 var assertFileExists = function(infile) {
     var instr = infile.toString();
@@ -34,16 +39,43 @@ var assertFileExists = function(infile) {
     return instr;
 };
 
+var assertUrlExists = function(url) {
+   // TODO: find a way to check the url for existance
+   return url.toString();
+};
+
 var cheerioHtmlFile = function(htmlfile) {
     return cheerio.load(fs.readFileSync(htmlfile));
+};
+
+var cheerioUrlFile = function(url, callback) {
+    restler.get(url).on('complete', function(result) {
+       if (result instanceof Error) {
+          console.log('Error: ' + result.message);
+       } else {
+          var cheerioUrlContents = cheerio.load(result);
+          callback(cheerioUrlContents);
+       }
+    });
 };
 
 var loadChecks = function(checksfile) {
     return JSON.parse(fs.readFileSync(checksfile));
 };
 
-var checkHtmlFile = function(htmlfile, checksfile) {
-    $ = cheerioHtmlFile(htmlfile);
+var checkHtmlFile =  function(htmlFile, checksFile) {
+   var $ = cheerioHtmlFile(htmlFile);
+   return checkHtmlContents($, checksFile);
+};
+
+var checkUrl = function(url, checksFile, callbackFn) {
+   cheerioUrlFile(url, function($) {
+       var results = checkHtmlContents($, checksFile);
+       callbackFn(results);
+   });
+};
+
+var checkHtmlContents = function($, checksfile) {
     var checks = loadChecks(checksfile).sort();
     var out = {};
     for(var ii in checks) {
@@ -63,10 +95,24 @@ if(require.main == module) {
     program
         .option('-c, --checks <check_file>', 'Path to checks.json', clone(assertFileExists), CHECKSFILE_DEFAULT)
         .option('-f, --file <html_file>', 'Path to index.html', clone(assertFileExists), HTMLFILE_DEFAULT)
+        .option('-l, --url <url_html_file>', 'URL to index.html', clone(assertUrlExists), URLFILE_DEFAULT) 
         .parse(process.argv);
-    var checkJson = checkHtmlFile(program.file, program.checks);
-    var outJson = JSON.stringify(checkJson, null, 4);
-    console.log(outJson);
+
+    var checkJson = "";
+    if (program.url != URLFILE_DEFAULT) {
+        console.log('doing url check for : ' + program.url);
+
+        checkUrl(program.url, program.checks, function(results) {
+            var outJson = JSON.stringify(results, null, 4);
+            console.log(outJson);
+        });
+    }
+    else {
+       console.log('doing file check for: ' + program.file);
+       checkJson = checkHtmlFile(program.file, program.checks);
+       var outJson = JSON.stringify(checkJson, null, 4);
+       console.log(outJson);
+    }
 } else {
     exports.checkHtmlFile = checkHtmlFile;
 }
